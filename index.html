@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Granger · Operaciones</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+.map-leaflet-tip{background:#1a2540!important;color:#fff!important;border:none!important;border-radius:8px!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;padding:6px 10px!important;box-shadow:0 4px 12px rgba(0,0,0,.2)!important;}
+.map-leaflet-tip::before{display:none!important}
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo-wrap">
+      <!-- Granger logo: navy text on dark bg = white version -->
+      <svg class="logo-svg" viewBox="0 0 320 80" xmlns="http://www.w3.org/2000/svg">
+        <text x="4" y="62" font-family="DM Sans, Arial Black, sans-serif" font-weight="800" font-size="62" fill="white" letter-spacing="-2">GRANGER</text><text x="284" y="62" font-family="DM Sans, Arial Black, sans-serif" font-weight="800" font-size="62" fill="#f18a00">.</text>
+      </svg>
+    </div>
+    <div class="sidebar-label">Operaciones</div>
+  </div>
+  <nav>
+    <div class="nav-item active" onclick="showPage('produccion',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Producción
+    </div>
+    <div class="nav-item" onclick="showPage('logistica',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      Logística
+    </div>
+    <div class="nav-item" onclick="showPage('compras',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+      Compras
+    </div>
+    <div class="nav-item" onclick="showPage('materias',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3"/></svg>
+      Materias Primas
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="last-update"><div class="pulse"></div><span id="last-upd">Datos actualizados</span></div>
+  </div>
+</div>
+
+<div id="main">
+  <div class="topbar">
+    <div class="page-title" id="page-title">Producción</div>
+    <div class="month-filter">
+      <label>Mes</label>
+      <select id="mes-select" onchange="renderAll()"></select>
+    </div>
+  </div>
+    <!-- ===== PRODUCCIÓN ===== -->
+    <div id="page-produccion" class="page active">
+      <div class="kpi-row kpi-4" id="prod-kpis"></div>
+
+      <div class="chart-row chart-6040">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Capacidad vs Planificado vs Efectivo</div><div class="chart-subtitle">Unidades por semana</div></div>
+          </div>
+          <div class="chart-container" style="height:210px"><canvas id="chart-unidades"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header"><div><div class="chart-title">Cumplimiento mensual</div><div class="chart-subtitle">Efectivo vs capacidad total</div></div></div>
+          <div id="gauge-produccion" class="gauge-wrap"></div>
+        </div>
+      </div>
+
+      <div class="chart-row chart-2col">
+        <div class="chart-card">
+          <div class="chart-header"><div><div class="chart-title">Cantidad de productos producidos</div><div class="chart-subtitle">Por semana</div></div></div>
+          <div class="chart-container" style="height:170px"><canvas id="chart-productos"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header"><div><div class="chart-title">Observaciones semanales</div></div></div>
+          <div class="obs-timeline" id="obs-semanales"></div>
+        </div>
+      </div>
+
+      <div class="annual-block">
+        <div><div class="annual-title">Consolidado Anual</div><div class="annual-sub">Evolución de producción mes a mes · 2025</div></div>
+      </div>
+      <div class="chart-row chart-2col">
+        <div class="chart-card">
+          <div class="chart-header"><div><div class="chart-title">Unidades por mes</div><div class="chart-subtitle">Capacidad · Planificado · Efectivo</div></div></div>
+          <div class="chart-container" style="height:210px"><canvas id="chart-anual-barras"></canvas></div>
+        <div id="anual-acumulado"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Producción por producto</div><div class="chart-subtitle">Unidades producidas</div></div>
+            <select id="prod-filter" onchange="renderForecastLinea()" style="font-size:11px;padding:4px 8px;max-width:160px"></select>
+          </div>
+          <div class="chart-container" style="height:210px"><canvas id="chart-anual-linea"></canvas></div>
+        </div>
+      </div>
+    </div>
+    <!-- ===== LOGÍSTICA ===== -->
+    <div id="page-logistica" class="page">
+      <div class="section-title">KPIs de Logística</div>
+        <div class="kpi-row kpi-4" id="kpi-log-cards"></div>
+
+        <div class="chart-row chart-2col">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div><div class="chart-title" id="pedidos-titulo">Pedidos por canal y almacén</div></div>
+              <div style="display:flex;gap:5px">
+                <button class="toggle-btn active" id="btn-pedidos" onclick="togglePedidos('pedidos')">Pedidos</button>
+                <button class="toggle-btn" id="btn-unidades" onclick="togglePedidos('unidades')">Unidades</button>
+              </div>
+            </div>
+            <div id="pedidos-totales" style="display:flex;gap:10px;margin-bottom:10px"></div>
+            <div class="chart-container" style="height:210px"><canvas id="chart-pedidos"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div><div class="chart-title">Evolución de pedidos</div><div class="chart-subtitle">Cantidad mensual por canal</div></div>
+              <div style="display:flex;gap:5px">
+                <button class="toggle-btn active" id="btn-evol-b2c" onclick="toggleEvolCanal('B2C')">B2C</button>
+                <button class="toggle-btn active" id="btn-evol-b2b" onclick="toggleEvolCanal('B2B')">B2B</button>
+              </div>
+            </div>
+            <div class="chart-container" style="height:210px"><canvas id="chart-evol-pedidos"></canvas></div>
+          </div>
+        </div>
+
+        <div class="section-title">Operadores logísticos 2026</div>
+        <div class="chart-row chart-2col">
+          <div class="chart-card">
+            <div class="chart-header"><div><div class="chart-title">B2C</div></div></div>
+            <div class="chart-container" style="height:200px"><canvas id="chart-pie-b2c"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header"><div><div class="chart-title">B2B</div></div></div>
+            <div class="chart-container" style="height:200px"><canvas id="chart-pie-b2b"></canvas></div>
+          </div>
+        </div>
+
+        <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>Distribución geográfica y envíos</span>
+          <div style="display:flex;gap:5px">
+            <button class="toggle-btn active" id="btn-b2c-map" onclick="toggleCanal('B2C')">B2C</button>
+            <button class="toggle-btn" id="btn-b2b-map" onclick="toggleCanal('B2B')">B2B</button>
+          </div>
+        </div>
+        <div class="chart-row chart-6040">
+          <div class="chart-card map-wrap" style="padding:14px">
+            <div class="chart-header"><div><div class="chart-title">Pedidos por provincia (2026)</div><div class="chart-subtitle" id="mapa-canal-label">Canal: B2C</div></div></div>
+            <div id="arg-map" style="height:440px;border-radius:8px;overflow:hidden"></div>
+            <div id="map-tooltip" class="map-tooltip"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header"><div><div class="chart-title">Promedio envíos / semana</div><div class="chart-subtitle">Por provincia · Base 5 meses</div></div></div>
+            <div style="overflow-y:auto;max-height:340px"><table id="tabla-provincias"></table></div>
+          </div>
+        </div>
+
+        <div class="section-title">Tiempos de entrega B2C</div>
+        <div class="chart-row chart-2col">
+          <div class="chart-card">
+            <div class="chart-header"><div><div class="chart-title">OCA</div><div class="chart-subtitle">Promedio en días</div></div></div>
+            <div style="overflow-y:auto;max-height:300px"><table id="tabla-tiempos-oca"></table></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header"><div><div class="chart-title">Enbox</div><div class="chart-subtitle">Tiempo promedio en horas</div></div></div>
+            <div style="overflow-y:auto;max-height:300px"><table id="tabla-tiempos-enbox"></table></div>
+          </div>
+        </div>
+    </div>
+    <!-- ===== COMPRAS ===== -->
+    <div id="page-compras" class="page">
+      <div class="section-title">KPIs de Compras</div>
+      <div class="kpi-row kpi-4" id="compras-kpis"></div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <div><div class="chart-title">Evolución KPIs de Compras</div><div class="chart-subtitle">Real vs Meta</div></div>
+          <select id="kpi-compras-select" onchange="renderKpiComprasChart()" style="font-size:11px;padding:4px 8px"></select>
+        </div>
+        <div class="chart-container" style="height:250px"><canvas id="chart-kpi-compras"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header"><div><div class="chart-title">Observaciones</div></div></div>
+        <div id="compras-obs"></div>
+      </div>
+    </div>
+
+    <!-- ===== MATERIAS PRIMAS ===== -->
+    <div id="page-materias" class="page">
+      <div class="section-title">Materias Primas</div>
+      <div class="chart-card" style="padding:0;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="border-bottom:2px solid #e5e7eb">
+            <th style="padding:10px 8px;text-align:left;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">#</th>
+            <th style="padding:10px 8px;text-align:left;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Materia Prima</th>
+            <th style="padding:10px 8px;text-align:left;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Moneda</th>
+            <th style="padding:10px 8px;text-align:left;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Último Costo</th>
+            <th style="padding:10px 8px;text-align:right;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Var. Ene-Jul</th>
+            <th style="padding:10px 8px;text-align:right;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Var. Mes Ant.</th>
+            <th style="padding:10px 8px;text-align:center;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Lead Time Prom.</th>
+            <th style="padding:10px 8px;text-align:center;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Cond. Pago Prom.</th>
+          </tr></thead>
+          <tbody><tr class="mp-row" id="mprow-0" onclick="toggleMP(0)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">1</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">HARINA DE AVENA LIBRE DE GLUTEN</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Dgrx / Industria de Avena</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">USD</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">USD 1,20</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#9ca3af;text-align:right">0.0%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#9ca3af">0.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">12.9 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">45.0 d</td></tr><tr id="mpexpand-0" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">HARINA DE AVENA LIBRE DE GLUTEN · Dgrx / Industria de Avena · USD</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-0"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-0"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-0"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-1" onclick="toggleMP(1)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">2</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">HUEVO EN POLVO</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Ovobrand</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">$</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">$ 13.600,00</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#dc2626;text-align:right">+8.8%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#9ca3af">0.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">8.5 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">60.0 d</td></tr><tr id="mpexpand-1" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">HUEVO EN POLVO · Ovobrand · $</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-1"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-1"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-1"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-2" onclick="toggleMP(2)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">3</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">LECHE DESCREMADA</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Ramolac / La Ramada</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">$</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">$ 5.000,00</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#dc2626;text-align:right">+23.2%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#9ca3af">0.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">10.7 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">55.0 d</td></tr><tr id="mpexpand-2" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">LECHE DESCREMADA · Ramolac / La Ramada · $</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-2"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-2"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-2"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-3" onclick="toggleMP(3)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">4</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">WPC 34</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Molfino Hnos</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">$</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">$ 5.000,00</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#dc2626;text-align:right">+24.1%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#dc2626">+2.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">4.5 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">28.2 d</td></tr><tr id="mpexpand-3" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">WPC 34 · Molfino Hnos · $</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-3"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-3"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-3"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-4" onclick="toggleMP(4)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">5</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">POLVO DE HORNEAR</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Aditivos Alimentarios</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">USD</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">USD 2,48</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#dc2626;text-align:right">+8.3%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#9ca3af">0.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">7.6 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">30.0 d</td></tr><tr id="mpexpand-4" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">POLVO DE HORNEAR · Aditivos Alimentarios · USD</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-4"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-4"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-4"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-5" onclick="toggleMP(5)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">6</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">CACAO</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Harmony</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">USD</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">USD 5,90</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#16a34a;text-align:right">-9.2%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#9ca3af">0.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">15.1 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">60.0 d</td></tr><tr id="mpexpand-5" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">CACAO · Harmony · USD</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-5"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-5"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-5"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-6" onclick="toggleMP(6)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">7</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">HARINA DE LUPINO TEXTURIZADA</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Elementa</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">USD</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">USD 4,50</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#16a34a;text-align:right">-4.3%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#9ca3af">0.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">4.7 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">20.0 d</td></tr><tr id="mpexpand-6" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">HARINA DE LUPINO TEXTURIZADA · Elementa · USD</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-6"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-6"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-6"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-7" onclick="toggleMP(7)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">8</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">SUCRALOSA</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Pampa Trade</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">USD</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">USD 19,50</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#16a34a;text-align:right">-15.2%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#9ca3af">0.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">11.6 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">60.0 d</td></tr><tr id="mpexpand-7" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">SUCRALOSA · Pampa Trade · USD</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-7"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-7"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-7"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-8" onclick="toggleMP(8)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">9</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">HARINA DE ALMENDRAS</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Warneke / Melar</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">$</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">$ 19.703,10</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#9ca3af;text-align:right">0.0%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#9ca3af">0.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">11.5 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">23.3 d</td></tr><tr id="mpexpand-8" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">HARINA DE ALMENDRAS · Warneke / Melar · $</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-8"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-8"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-8"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-9" onclick="toggleMP(9)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">10</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">COLAGENO MP</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">PB Leiner</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">USD</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">USD 9,70</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#dc2626;text-align:right">+2.1%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#9ca3af">0.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">17.1 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">30.0 d</td></tr><tr id="mpexpand-9" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">COLAGENO MP · PB Leiner · USD</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-9"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-9"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-9"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-10" onclick="toggleMP(10)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">11</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">ARO VAINILLA PIEDMONT 101.090</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Piedmont</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">USD</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">USD 30,37</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#9ca3af;text-align:right">0.0%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#9ca3af">0.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">8.1 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">30.0 d</td></tr><tr id="mpexpand-10" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">ARO VAINILLA PIEDMONT 101.090 · Piedmont · USD</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-10"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-10"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-10"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-11" onclick="toggleMP(11)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">12</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">HARINA DE MANI</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Le Fit</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">$</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">$ 8.900,00</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#9ca3af;text-align:right">0.0%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#9ca3af">0.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">8.2 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">25.0 d</td></tr><tr id="mpexpand-11" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">HARINA DE MANI · Le Fit · $</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-11"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-11"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-11"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-12" onclick="toggleMP(12)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">13</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">ALMIDON DE MAIZ</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Dharma</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">$</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">$ 1.417,80</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#dc2626;text-align:right">+19.1%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#dc2626">+2.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">9.2 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">30.0 d</td></tr><tr id="mpexpand-12" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">ALMIDON DE MAIZ · Dharma · $</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-12"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-12"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-12"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-13" onclick="toggleMP(13)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">14</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">ARO CHOCOLATE (42-15907MS) SUIZO</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Fryma</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">USD</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">USD 23,69</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#9ca3af;text-align:right">0.0%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#9ca3af">0.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">10.3 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">60.0 d</td></tr><tr id="mpexpand-13" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">ARO CHOCOLATE (42-15907MS) SUIZO · Fryma · USD</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-13"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-13"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-13"></canvas></div></div></div></div></td></tr>
+<tr class="mp-row" id="mprow-14" onclick="toggleMP(14)" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s"><td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">15</td><td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">INULINA ORAFTI HSI</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">Saporiti</div></td><td style="padding:12px 8px;font-size:12px;color:#4b5563">USD</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#111827">USD 6,60</td><td style="padding:12px 8px;font-size:13px;font-weight:600;color:#dc2626;text-align:right">+3.1%</td><td style="padding:12px 8px;text-align:right"><span style="font-size:13px;font-weight:600;color:#9ca3af">0.0%</span><div style='font-size:9px;color:#9ca3af;margin-top:1px'>Junio→Julio</div></td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">9.7 d</td><td style="padding:12px 8px;font-size:13px;color:#374151;text-align:center">45.0 d</td></tr><tr id="mpexpand-14" style="display:none"><td colspan="8" style="padding:0;background:#f9fafb"><div style="padding:16px"><div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">INULINA ORAFTI HSI · Saporiti · USD</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Evolución Costo</div><div style="height:150px;position:relative"><canvas id="mp-chart-costo-14"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Lead Time (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-lt-14"></canvas></div></div><div><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Condición de Pago (días)</div><div style="height:150px;position:relative"><canvas id="mp-chart-cp-14"></canvas></div></div></div></div></td></tr>
+</tbody>
+        </table>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
