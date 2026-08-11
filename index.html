@@ -58,30 +58,6 @@
     <div id="page-produccion" class="page active">
       <div class="kpi-row kpi-4" id="prod-kpis"></div>
 
-      <div class="chart-row chart-6040">
-        <div class="chart-card">
-          <div class="chart-header">
-            <div><div class="chart-title">Capacidad vs Planificado vs Efectivo</div><div class="chart-subtitle">Unidades por semana</div></div>
-          </div>
-          <div class="chart-container" style="height:210px"><canvas id="chart-unidades"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-header"><div><div class="chart-title">Cumplimiento mensual</div><div class="chart-subtitle">Efectivo vs capacidad total</div></div></div>
-          <div id="gauge-produccion" class="gauge-wrap"></div>
-        </div>
-      </div>
-
-      <div class="chart-row chart-2col">
-        <div class="chart-card">
-          <div class="chart-header"><div><div class="chart-title">Cantidad de productos producidos</div><div class="chart-subtitle">Por semana</div></div></div>
-          <div class="chart-container" style="height:170px"><canvas id="chart-productos"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-header"><div><div class="chart-title">Observaciones semanales</div></div></div>
-          <div class="obs-timeline" id="obs-semanales"></div>
-        </div>
-      </div>
-
       <div class="annual-block">
         <div><div class="annual-title">Consolidado Anual</div><div class="annual-sub">Evolución de producción mes a mes · 2025</div></div>
       </div>
@@ -90,12 +66,18 @@
         <div class="chart-container" style="height:260px"><canvas id="chart-anual-barras"></canvas></div>
         <div id="anual-acumulado"></div>
       </div>
+
       <div class="chart-card">
         <div class="chart-header">
           <div><div class="chart-title">Producción por producto</div><div class="chart-subtitle">Unidades producidas</div></div>
           <select id="prod-filter" onchange="renderForecastLinea()" style="font-size:11px;padding:4px 8px;max-width:160px"></select>
         </div>
         <div class="chart-container" style="height:210px"><canvas id="chart-anual-linea"></canvas></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header"><div><div class="chart-title">Observaciones semanales</div></div></div>
+        <div class="obs-timeline" id="obs-semanales"></div>
       </div>
     </div>
     <!-- ===== LOGÍSTICA ===== -->

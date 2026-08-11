@@ -1,6 +1,7 @@
 .map-leaflet-tip{background:#1a2540!important;color:#fff!important;border:none!important;border-radius:8px!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;padding:6px 10px!important;box-shadow:0 4px 12px rgba(0,0,0,.2)!important;}
 .map-leaflet-tip::before{display:none!important}
 
+
 :root {
   /* Granger brand colors - navy + white + accent */
   --bg: #f7f2e7;

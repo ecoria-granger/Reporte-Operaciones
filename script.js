@@ -174,15 +174,11 @@ function renderProduccion() {
   const efAll = RAW.eficiencia.filter(r=>r.mes===currentMes);
   if(!efAll.length) return;
   const ef = efAll.filter(r=>!r.natufarma);
-  const natRow = efAll.find(r=>r.natufarma);
 
   const totalEf = ef.reduce((s,r)=>s+r.efectiva,0);
   const totalPl = ef.reduce((s,r)=>s+r.planificada,0);
-  const totalCap = ef.reduce((s,r)=>s+r.capacidad,0);
-  // Usamos ratios de totales (suma/suma) para que sean matemáticamente consistentes entre sí:
   // (Efectivo/Capacidad) = (Efectivo/Planificado) x (Planificado/Capacidad)
   const avgEfEfPl = totalPl>0 ? totalEf/totalPl : 0;
-  const avgEfPlCap = totalCap>0 ? totalPl/totalCap : 0;
   const totalOrdenes = ef.reduce((s,r)=>s+r.ordenes,0);
 
   // Quiebre de stock del mes seleccionado
@@ -217,47 +213,6 @@ function renderProduccion() {
       ${quiebreRow&&quiebreRow.comentario?'<div style="margin-top:6px;font-size:10px;color:var(--amber);border-top:1px solid var(--border);padding-top:5px;line-height:1.6">'+quiebreRow.comentario.split('\n').filter(function(l){return l.trim();}).map(function(l){return '<div>'+l+'</div>';}).join('')+'</div>':''}
     </div>
   `;
-
-  // Barras agrupadas semana (+ Natufarma como barra adicional, si corresponde a este mes)
-  const wkLabels = ef.map(r=>r.semana.replace('Semana ',''));
-  const wkCap = ef.map(r=>r.capacidad);
-  const wkPlan = ef.map(r=>r.planificada);
-  const wkEf = ef.map(r=>r.efectiva);
-  if(natRow){ wkLabels.push('Natufarma'); wkCap.push(null); wkPlan.push(null); wkEf.push(natRow.efectiva); }
-  mkChart('chart-unidades','bar',{
-    labels: wkLabels,
-    datasets:[
-      {label:'Capacidad', data:wkCap, backgroundColor:'rgba(34,32,28,0.10)', borderColor:'rgba(34,32,28,0.30)', borderWidth:1.5, borderRadius:3},
-      {label:'Planificado', data:wkPlan, backgroundColor:'rgba(180,180,180,0.50)', borderColor:'rgba(100,100,100,0.50)', borderWidth:1.5, borderRadius:3},
-      {label:'Efectivo', data:wkEf, backgroundColor:wkEf.map((v,i)=>i===wkEf.length-1&&natRow?'rgba(8,145,178,0.70)':'rgba(241,138,0,0.70)'), borderColor:wkEf.map((v,i)=>i===wkEf.length-1&&natRow?'#0891b2':'#f18a00'), borderWidth:1.5, borderRadius:3},
-    ]
-  }, barOptsWithLabels());
-
-  // Gauge
-  const pct = totalCap>0 ? totalEf/totalCap : totalPl>0 ? totalEf/totalPl : 0;
-  const gc = pct>=0.85?'#16a34a':pct>=0.65?'#d97706':'#dc2626';
-  document.getElementById('gauge-produccion').innerHTML = `
-    <div class="kpi-label" style="text-align:center">Efectivo vs Capacidad</div>
-    <div class="gauge-val" style="color:${gc};font-size:36px;text-align:center;margin:8px 0">${fmtPct(pct)}</div>
-    <div class="gauge-bar-wrap"><div class="gauge-bar" style="width:${Math.min(pct*100,100).toFixed(1)}%;background:${gc}"></div></div>
-    <div style="text-align:center;font-size:11px;color:var(--text3)">${fmtN(totalEf)} / ${fmtN(totalCap||totalPl)} u.</div>
-    <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:8px">
-      <div style="display:flex;justify-content:space-between;font-size:11px">
-        <span style="color:var(--text2)">Efic. real/plan</span>
-        <span style="font-weight:700;color:${semColor(avgEfEfPl)}">${fmtPct(avgEfEfPl)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:11px">
-        <span style="color:var(--text2)">Plan/Capacidad</span>
-        <span style="font-weight:700">${fmtPct(avgEfPlCap)}</span>
-      </div>
-    </div>
-  `;
-
-  // Productos por semana
-  mkChart('chart-productos','bar',{
-    labels: ef.map(r=>r.semana.replace('Semana ','')),
-    datasets:[{label:'Productos',data:ef.map(r=>r.cant_productos),backgroundColor:'#1a2540',borderRadius:4}]
-  },{...barOptsWithLabels(),plugins:{...barOptsWithLabels().plugins,legend:{display:false}}});
 
   // Observaciones semanales
   const obsEl = document.getElementById('obs-semanales');
