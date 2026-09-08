@@ -291,7 +291,6 @@ function renderAnualBarras() {
   const meses = MESES.filter(m=>byMes[m]);
   const hasNatufarma = meses.some(m=>byMes[m].natEf>0);
   const datasets = [
-    {label:'Capacidad',data:meses.map(m=>byMes[m].cap),backgroundColor:'rgba(34,32,28,0.10)',borderColor:'rgba(34,32,28,0.30)',borderWidth:1.5,borderRadius:3,stack:'cap'},
     {label:'Planificado',data:meses.map(m=>byMes[m].plan),backgroundColor:'rgba(180,180,180,0.50)',borderColor:'rgba(100,100,100,0.50)',borderWidth:1.5,borderRadius:3,stack:'plan'},
     {label:'Efectivo',data:meses.map(m=>byMes[m].ef),backgroundColor:'rgba(241,138,0,0.70)',borderColor:'#f18a00',borderWidth:1.5,borderRadius:3,stack:'efectivo'},
   ];
@@ -308,10 +307,10 @@ function renderForecastLinea() {
   const sel = document.getElementById('prod-filter').value;
   const byMes = {};
   RAW.forecast.filter(function(r){return String(r.sku)===sel;}).forEach(function(r){var v=typeof r.produccion==='number'?r.produccion:parseFloat(String(r.produccion).replace(',',''))||0;byMes[r.mes]=(byMes[r.mes]||0)+v;});
-  const meses = MESES.filter(m=>byMes[m]);
+  const meses = MESES.filter(m=>Object.prototype.hasOwnProperty.call(byMes,m));
   mkChart('chart-anual-linea','line',{
     labels:meses.length?meses:[currentMes],
-    datasets:[{label:'Producción',data:meses.length?meses.map(m=>byMes[m]||0):[byMes[currentMes]||0],borderColor:'#f18a00',backgroundColor:'rgba(241,138,0,0.08)',tension:.3,pointRadius:4,pointBackgroundColor:'#f18a00',fill:true}]
+    datasets:[{label:'Producción',data:meses.length?meses.map(m=>byMes[m]):[byMes[currentMes]||0],borderColor:'#f18a00',backgroundColor:'rgba(241,138,0,0.08)',tension:.3,pointRadius:4,pointBackgroundColor:'#f18a00',fill:true}]
   },{
     responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},
@@ -414,7 +413,7 @@ function renderCostosLog(key, cfg) {
 function renderKpiLogCards() {
   // Use currentMes; fall back to last available mes
   const availMeses = MESES.filter(m=>RAW.kpi_logistica.some(r=>r.mes===m));
-  const lastMes = availMeses.includes(currentMes) ? currentMes : (availMeses.pop()||currentMes);
+  const lastMes = availMeses.includes(currentMes) ? currentMes : (availMeses[availMeses.length-1]||currentMes);
   const kpis = RAW.kpi_logistica.filter(r=>r.mes===lastMes&&!r.indicador.includes('Quiebre')&&!r.indicador.includes('Cantidad'));
   const colors = {'Exactitud de Inventario PT Planta':'#1a2540','Exactitud de Inventario PT Enbox':'#2563eb','Exactitud de Inventario MP':'#0891b2','Dias de inventario disponible':'#16a34a','Exactitud de Picking B2B':'#d97706','Exactitud de Picking B2C':'#7c3aed','Tiempo de Procesamiento de Pedido':'#dc2626'};
   const el = document.getElementById('kpi-log-cards');
@@ -712,34 +711,32 @@ function showMapTip(){}
 function hideMapTip(){}
 
 function renderTablaProvincias() {
-  // Sumar pedidos del canal por provincia en TODOS los meses (Enero-Mayo)
-  // y dividir por las semanas exactas del período: 151 días / 7 = 21.57 semanas
-  var SEMANAS_PERIODO = 21.57;
-  var MESES_PERIODO = ['Enero','Febrero','Marzo','Abril','Mayo'];
+  var mesesDisp = RAW.log_summary.meses_disponibles;
+  // Calcular semanas dinámicamente: aprox 4.33 semanas por mes
+  var SEMANAS_PERIODO = parseFloat((mesesDisp.length * 4.333).toFixed(2));
   var byMes = RAW.log_summary.by_mes;
 
-  // Acumular pedidos por provincia sumando todos los meses
   var provTotales = {};
-  MESES_PERIODO.forEach(function(m) {
+  mesesDisp.forEach(function(m) {
     var mesData = byMes[m] || {};
     var prov_counts = mesData.prov_counts || {};
-    var canalData = Object.entries(mesData.canal_almacen||{}).filter(([k])=>k.startsWith(currentCanal+'|'));
-    var totalCanal = canalData.reduce((s,[,v])=>s+v.pedidos, 0);
-    var totalAll = Object.entries(mesData.canal_almacen||{}).reduce((s,[,v])=>s+v.pedidos, 0) || 1;
+    var canalData = Object.entries(mesData.canal_almacen||{}).filter(function(e){return e[0].startsWith(currentCanal+'|');});
+    var totalCanal = canalData.reduce(function(s,e){return s+e[1].pedidos;}, 0);
+    var totalAll = Object.entries(mesData.canal_almacen||{}).reduce(function(s,e){return s+e[1].pedidos;}, 0) || 1;
     var ratio = totalCanal / totalAll;
-    Object.entries(prov_counts).forEach(function([p, c]) {
-      provTotales[p] = (provTotales[p] || 0) + Math.round(c * ratio);
+    Object.entries(prov_counts).forEach(function(e) {
+      provTotales[e[0]] = (provTotales[e[0]] || 0) + Math.round(e[1] * ratio);
     });
   });
 
   var sorted = Object.entries(provTotales)
-    .filter(([,v])=>v>0)
-    .sort((a,b)=>b[1]-a[1])
-    .map(([p,v])=>[p, parseFloat((v/SEMANAS_PERIODO).toFixed(1))]);
+    .filter(function(e){return e[1]>0;})
+    .sort(function(a,b){return b[1]-a[1];})
+    .map(function(e){return [e[0], parseFloat((e[1]/SEMANAS_PERIODO).toFixed(1))];});
 
   document.getElementById('tabla-provincias').innerHTML=
     `<thead><tr><th>Provincia</th><th class="td-num">Prom/sem (${currentCanal})</th></tr></thead><tbody>`+
-    sorted.map(([p,v])=>`<tr><td>${p}</td><td class="td-num">${fmtN(v,1)}</td></tr>`).join('')+`</tbody>`;
+    sorted.map(function(e){return `<tr><td>${e[0]}</td><td class="td-num">${fmtN(e[1],1)}</td></tr>`;}).join('')+`</tbody>`;
 }
 
 function renderTiemposB2C() {
@@ -868,7 +865,7 @@ function toggleMP(idx) {
     row.style.background = 'rgba(241,138,0,0.04)';
     setTimeout(function(){ expand.scrollIntoView({behavior:'smooth',block:'nearest'}); }, 50);
     var mp = RAW.mp_list[idx];
-    var MM = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio'];
+    var MM = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto'];
     var opts = {responsive:true,maintainAspectRatio:false,layout:{padding:{top:14}},
       plugins:{legend:{display:false},datalabels:{display:false},tooltip:{callbacks:{label:function(c){return c.raw;}}}},
       scales:{x:{grid:{display:false},ticks:{color:'#9ca3af',font:{size:9}}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#9ca3af',font:{size:9}}}}};
@@ -882,7 +879,7 @@ function toggleMP(idx) {
 }
 function renderSparklines() {
   if(!RAW.mp_list) return;
-  var MM=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio'];
+  var MM=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto'];
   RAW.mp_list.forEach(function(mp,i){
     var cv=document.getElementById('spark-'+i); if(!cv) return;
     var vals=MM.map(function(m){return mp.costos[m]||null;}).filter(Boolean); if(!vals.length) return;
