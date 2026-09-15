@@ -67,6 +67,24 @@ nav{flex:1;padding:10px 0;overflow-y:auto}
 select{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:8px;font-family:var(--font);font-size:13px;cursor:pointer;outline:none}
 select:focus{border-color:#22201c}
 
+/* MULTI-MONTH DROPDOWN */
+.ms-dropdown{position:relative;display:inline-block}
+.ms-toggle{display:inline-flex;align-items:center;gap:8px;min-width:150px;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:8px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;outline:none;transition:border-color .15s}
+.ms-toggle:hover{border-color:#bbb}
+.ms-dropdown.open .ms-toggle{border-color:#22201c}
+.ms-caret{width:15px;height:15px;flex-shrink:0;color:var(--text3);transition:transform .18s}
+.ms-dropdown.open .ms-caret{transform:rotate(180deg)}
+.ms-panel{position:absolute;top:calc(100% + 6px);right:0;z-index:200;width:230px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.14);padding:8px;animation:msFade .12s ease}
+@keyframes msFade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.ms-panel-actions{display:flex;gap:6px;padding:2px 2px 8px;border-bottom:1px solid var(--border);margin-bottom:6px}
+.ms-panel-actions button{flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:5px 6px;border-radius:6px;font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.ms-panel-actions button:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
+.ms-options{max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:1px}
+.ms-opt{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:6px;font-size:13px;color:var(--text);cursor:pointer;user-select:none;transition:background .12s}
+.ms-opt:hover{background:var(--surface2)}
+.ms-opt input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;margin:0}
+.ms-opt.checked{font-weight:600}
+
 /* KPI CARDS */
 .kpi-row{display:grid;gap:14px;margin-bottom:18px}
 .kpi-4{grid-template-columns:repeat(4,1fr)}

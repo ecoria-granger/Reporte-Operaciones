@@ -50,8 +50,20 @@
   <div class="topbar">
     <div class="page-title" id="page-title">Producción</div>
     <div class="month-filter">
-      <label>Mes</label>
-      <select id="mes-select" onchange="renderAll()"></select>
+      <label>Meses</label>
+      <div class="ms-dropdown" id="mes-dropdown">
+        <button type="button" class="ms-toggle" id="mes-toggle" onclick="toggleMesDropdown(event)">
+          <span id="mes-toggle-label">—</span>
+          <svg class="ms-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="ms-panel" id="mes-panel" hidden>
+          <div class="ms-panel-actions">
+            <button type="button" onclick="mesSelectAll()">Todos</button>
+            <button type="button" onclick="mesSelectLast()">Último mes</button>
+          </div>
+          <div class="ms-options" id="mes-options"></div>
+        </div>
+      </div>
     </div>
   </div>
     <!-- ===== PRODUCCIÓN ===== -->

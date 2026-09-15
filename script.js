@@ -46,8 +46,63 @@ function mkChart(id, type, data, opts) {
 }
 
 // ── STATE ─────────────────────────────────────────────────────
-let currentMes = 'Mayo';
+let currentMes = 'Mayo';          // mes representativo (el más reciente de la selección)
+let selectedMeses = [];           // meses seleccionados en el filtro (multi-selección)
+let mesesDisponibles = [];        // todos los meses con datos, en orden calendario
 // pedidosMode reemplazado por currentCanal (B2C/B2B)
+
+// Devuelve la selección ordenada por calendario
+function selMeses(){ return MESES.filter(m=>selectedMeses.includes(m)); }
+// Intersección de la selección con una lista de meses disponibles (orden calendario)
+function selMesesIn(avail){ return MESES.filter(m=>selectedMeses.includes(m) && avail.includes(m)); }
+// Etiqueta compacta para mostrar la selección
+function mesesLabel(arr){
+  const a = arr || selMeses();
+  if(a.length===0) return '—';
+  if(a.length===1) return a[0];
+  if(mesesDisponibles.length && a.length===mesesDisponibles.length) return 'Todos ('+a.length+')';
+  return a.length+' meses';
+}
+// Suma los valores de un objeto {mes: número} sobre los meses dados. null si no hay ninguno.
+function sumMesObj(obj, meses){
+  if(!obj) return null;
+  let any=false, t=0;
+  meses.forEach(m=>{ if(typeof obj[m]==='number'){ any=true; t+=obj[m]; } });
+  return any ? t : null;
+}
+// Fusiona canal_almacen ({pedidos,unidades}) de log_summary sobre varios meses
+function mergeCanalAlmacen(meses){
+  const out={};
+  meses.forEach(m=>{
+    const ca=(RAW.log_summary.by_mes[m]&&RAW.log_summary.by_mes[m].canal_almacen)||{};
+    Object.entries(ca).forEach(([k,v])=>{
+      if(!out[k]) out[k]={pedidos:0,unidades:0};
+      out[k].pedidos+=v.pedidos||0; out[k].unidades+=v.unidades||0;
+    });
+  });
+  return out;
+}
+// Fusiona prov_counts de log_summary sobre varios meses
+function mergeProvCounts(meses){
+  const out={};
+  meses.forEach(m=>{
+    const pc=(RAW.log_summary.by_mes[m]&&RAW.log_summary.by_mes[m].prov_counts)||{};
+    Object.entries(pc).forEach(([p,c])=>{ out[p]=(out[p]||0)+c; });
+  });
+  return out;
+}
+// Fusiona granger_sa_transp ({canal:{transp:cant}}) sobre varios meses
+function mergeGrangerTransp(meses){
+  const out={};
+  meses.forEach(m=>{
+    const g=(RAW.granger_sa_transp&&RAW.granger_sa_transp[m])||{};
+    Object.entries(g).forEach(([canal,obj])=>{
+      out[canal]=out[canal]||{};
+      Object.entries(obj||{}).forEach(([t,c])=>{ out[canal][t]=(out[canal][t]||0)+c; });
+    });
+  });
+  return out;
+}
 
 // ── NAV ───────────────────────────────────────────────────────
 function showPage(page, el) {
@@ -61,17 +116,20 @@ function showPage(page, el) {
 
 // ── INIT ──────────────────────────────────────────────────────
 function init() {
-  const sel = document.getElementById('mes-select');
-  const mesesPresentes = [...new Set(RAW.eficiencia.map(r=>r.mes))];
-  const mesesOrdenados = MESES.filter(m=>mesesPresentes.includes(m));
-  const ultimoMes = mesesOrdenados[mesesOrdenados.length-1];
-  mesesOrdenados.forEach(m=>{
-    const o = document.createElement('option');
-    o.value=m; o.textContent=m;
-    if(m===ultimoMes) o.selected=true;
-    sel.appendChild(o);
-  });
-  currentMes = sel.value;
+  // Meses con datos (unión de todas las fuentes que dependen del mes)
+  const presentes = new Set();
+  RAW.eficiencia.forEach(r=>presentes.add(r.mes));
+  (RAW.log_summary&&RAW.log_summary.meses_disponibles||[]).forEach(m=>presentes.add(m));
+  RAW.kpi_logistica.forEach(r=>presentes.add(r.mes));
+  mesesDisponibles = MESES.filter(m=>presentes.has(m));
+  const ultimoMes = mesesDisponibles[mesesDisponibles.length-1];
+
+  // Arranca con el último mes seleccionado (comportamiento previo)
+  selectedMeses = ultimoMes ? [ultimoMes] : [];
+  currentMes = ultimoMes || 'Mayo';
+
+  buildMesOptions();
+  updateMesToggleLabel();
 
   // Forecast product filter
   const pf = document.getElementById('prod-filter');
@@ -88,12 +146,86 @@ function init() {
 }
 
 function renderAll() {
-  currentMes = document.getElementById('mes-select').value;
+  const sel = selMeses();
+  currentMes = sel.length ? sel[sel.length-1] : currentMes;
   renderProduccion();
   renderLogistica();
   renderCompras();
   renderMP();
 }
+
+// ── FILTRO MULTI-MES ──────────────────────────────────────────
+function buildMesOptions() {
+  const cont = document.getElementById('mes-options');
+  if(!cont) return;
+  cont.innerHTML = mesesDisponibles.map(m=>{
+    const checked = selectedMeses.includes(m);
+    return '<label class="ms-opt'+(checked?' checked':'')+'" data-mes="'+m+'">'
+      +'<input type="checkbox" '+(checked?'checked':'')+' onchange="onMesToggle(\''+m+'\',this)">'
+      +'<span>'+m+'</span></label>';
+  }).join('');
+}
+
+function updateMesToggleLabel() {
+  const lbl = document.getElementById('mes-toggle-label');
+  if(!lbl) return;
+  const sel = selMeses();
+  lbl.textContent = mesesLabel(sel);
+  lbl.parentElement.title = sel.length ? sel.join(', ') : '';
+}
+
+function toggleMesDropdown(ev) {
+  if(ev) ev.stopPropagation();
+  const dd = document.getElementById('mes-dropdown');
+  const panel = document.getElementById('mes-panel');
+  const open = !dd.classList.contains('open');
+  dd.classList.toggle('open', open);
+  panel.hidden = !open;
+}
+
+function closeMesDropdown() {
+  const dd = document.getElementById('mes-dropdown');
+  if(dd) dd.classList.remove('open');
+  const panel = document.getElementById('mes-panel');
+  if(panel) panel.hidden = true;
+}
+
+function onMesToggle(mes, cb) {
+  if(cb.checked){
+    if(!selectedMeses.includes(mes)) selectedMeses.push(mes);
+  } else {
+    // No permitir dejar la selección vacía
+    if(selectedMeses.length<=1){ cb.checked=true; return; }
+    selectedMeses = selectedMeses.filter(m=>m!==mes);
+  }
+  const opt = cb.closest('.ms-opt');
+  if(opt) opt.classList.toggle('checked', cb.checked);
+  afterMesChange();
+}
+
+function mesSelectAll() {
+  selectedMeses = mesesDisponibles.slice();
+  buildMesOptions();
+  afterMesChange();
+}
+
+function mesSelectLast() {
+  const ultimo = mesesDisponibles[mesesDisponibles.length-1];
+  selectedMeses = ultimo ? [ultimo] : [];
+  buildMesOptions();
+  afterMesChange();
+}
+
+function afterMesChange() {
+  updateMesToggleLabel();
+  renderAll();
+}
+
+// Cerrar el dropdown al hacer clic fuera
+document.addEventListener('click', function(e){
+  const dd = document.getElementById('mes-dropdown');
+  if(dd && !dd.contains(e.target)) closeMesDropdown();
+});
 
 // ── HELPERS ───────────────────────────────────────────────────
 function fmtN(n, decimals=0) {
@@ -170,7 +302,9 @@ Chart.register(topLabelPlugin);
 
 // ── PRODUCCIÓN ────────────────────────────────────────────────
 function renderProduccion() {
-  const efAll = RAW.eficiencia.filter(r=>r.mes===currentMes);
+  const sel = selMeses();
+  const lbl = mesesLabel(sel);
+  const efAll = RAW.eficiencia.filter(r=>sel.includes(r.mes));
   if(!efAll.length) return;
   const ef = efAll.filter(r=>!r.natufarma);
 
@@ -179,17 +313,22 @@ function renderProduccion() {
   // (Efectivo/Capacidad) = (Efectivo/Planificado) x (Planificado/Capacidad)
   const avgEfEfPl = totalPl>0 ? totalEf/totalPl : 0;
   const totalOrdenes = ef.reduce((s,r)=>s+r.ordenes,0);
+  const kgTotal = sumMesObj(RAW.kg_by_mes, sel) || 0;
 
-  // Quiebre de stock del mes seleccionado
-  const quiebreRow = RAW.kpi_logistica.find(r=>r.mes===currentMes&&r.indicador.includes('Quiebre'));
-  const quiebre = quiebreRow ? quiebreRow.valor : 0;
+  // Quiebre de stock: suma de los meses seleccionados
+  const quiebreRows = RAW.kpi_logistica.filter(r=>sel.includes(r.mes)&&r.indicador.includes('Quiebre'));
+  const quiebre = quiebreRows.reduce((s,r)=>s+(r.valor||0),0);
+  const quiebreComentario = quiebreRows
+    .filter(r=>r.comentario)
+    .map(r=> sel.length>1 ? r.mes+': '+r.comentario : r.comentario)
+    .join('\n');
 
   document.getElementById('prod-kpis').innerHTML = `
     <div class="kpi-card">
       <div class="kpi-card-top" style="background:#1a2540"></div>
       <div class="kpi-label">Producción efectiva</div>
       <div class="kpi-value">${fmtN(totalEf)}</div>
-      <div class="kpi-sub">unidades · ${currentMes}</div>
+      <div class="kpi-sub">unidades · ${lbl}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-card-top" style="background:${semColor(avgEfEfPl)}"></div>
@@ -201,7 +340,7 @@ function renderProduccion() {
     <div class="kpi-card">
       <div class="kpi-card-top" style="background:#2563eb"></div>
       <div class="kpi-label">Órdenes ejecutadas</div>
-      <div class="kpi-value">${fmtN(totalOrdenes)} <span style="font-size:13px;font-weight:500;color:var(--text2)">(${fmtN(RAW.kg_by_mes&&RAW.kg_by_mes[currentMes]?RAW.kg_by_mes[currentMes]:0)} kg)</span></div>
+      <div class="kpi-value">${fmtN(totalOrdenes)} <span style="font-size:13px;font-weight:500;color:var(--text2)">(${fmtN(kgTotal)} kg)</span></div>
       <div class="kpi-sub">${fmtN(ef.reduce((s,r)=>s+r.cambios,0))} cambios de producto</div>
     </div>
     <div class="kpi-card">
@@ -209,16 +348,17 @@ function renderProduccion() {
       <div class="kpi-label">Quiebre de stock</div>
       <div class="kpi-value" style="color:${quiebre===0?'#16a34a':'#dc2626'}">${fmtN(quiebre)}</div>
       <div class="kpi-sub"><span class="badge ${quiebre===0?'pos':'neg'}">Meta: 0</span></div>
-      ${quiebreRow&&quiebreRow.comentario?'<div style="margin-top:6px;font-size:10px;color:var(--amber);border-top:1px solid var(--border);padding-top:5px;line-height:1.6">'+quiebreRow.comentario.split('\n').filter(function(l){return l.trim();}).map(function(l){return '<div>'+l+'</div>';}).join('')+'</div>':''}
+      ${quiebreComentario?'<div style="margin-top:6px;font-size:10px;color:var(--amber);border-top:1px solid var(--border);padding-top:5px;line-height:1.6">'+quiebreComentario.split('\n').filter(function(l){return l.trim();}).map(function(l){return '<div>'+l+'</div>';}).join('')+'</div>':''}
     </div>
   `;
 
   // Observaciones semanales
   const obsEl = document.getElementById('obs-semanales');
   const obsData = ef.filter(r=>r.obs);
+  const multiMes = sel.length>1;
   obsEl.innerHTML = obsData.length
-    ? obsData.map(r=>`<div class="obs-item"><div class="obs-week">${r.semana.replace('Semana','Sem.')}</div><div class="obs-text">${r.obs}</div></div>`).join('')
-    : `<div style="color:var(--text3);font-size:12px;padding:12px 0">Sin observaciones para este mes</div>`;
+    ? obsData.map(r=>`<div class="obs-item"><div class="obs-week">${(multiMes?r.mes+' · ':'')+r.semana.replace('Semana','Sem.')}</div><div class="obs-text">${r.obs}</div></div>`).join('')
+    : `<div style="color:var(--text3);font-size:12px;padding:12px 0">Sin observaciones para ${multiMes?'estos meses':'este mes'}</div>`;
 
   renderAnualBarras();
   renderForecastLinea();
@@ -335,35 +475,39 @@ function renderCostosLog(key, cfg) {
   const data = RAW[key];
   if(!data) return;
   const meses = data.meses;
-  const sinDatosMes = !meses.includes(currentMes);
+  const sel = selMesesIn(meses);       // meses seleccionados que tienen datos cargados
+  const lbl = mesesLabel(sel);
 
-  if(sinDatosMes) {
-    document.getElementById(cfg.kpisId).innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:24px 0">Sin datos de costos logísticos cargados para '+currentMes+'</div>';
+  if(!sel.length) {
+    document.getElementById(cfg.kpisId).innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:24px 0">Sin datos de costos logísticos cargados para '+mesesLabel()+'</div>';
     if(CHARTS[cfg.chartId]){ CHARTS[cfg.chartId].destroy(); delete CHARTS[cfg.chartId]; }
     const mesLabelEl0 = document.getElementById(cfg.mesLabelId);
-    if(mesLabelEl0) mesLabelEl0.textContent = currentMes;
+    if(mesLabelEl0) mesLabelEl0.textContent = mesesLabel();
   } else {
-    const lastMes = currentMes;
-    const idx = meses.indexOf(lastMes);
-    const prevMes = idx>0 ? meses[idx-1] : null;
-    const totalCosto = data.total_costo[lastMes];
-    const facturado = data.facturado[lastMes];
-    const pct = data.total_pct[lastMes];
-    const prevPct = prevMes ? data.total_pct[prevMes] : null;
-    const deltaPct = prevPct!=null ? pct-prevPct : null;
+    const totalCosto = sel.reduce((s,m)=>s+(data.total_costo[m]||0),0);
+    const facturado = sel.reduce((s,m)=>s+(data.facturado[m]||0),0);
+    const pct = facturado>0 ? totalCosto/facturado : 0;
+    // Delta vs mes anterior solo tiene sentido con un único mes seleccionado
+    let deltaPct = null, prevMes = null;
+    if(sel.length===1){
+      const idx = meses.indexOf(sel[0]);
+      prevMes = idx>0 ? meses[idx-1] : null;
+      const prevPct = prevMes ? data.total_pct[prevMes] : null;
+      deltaPct = prevPct!=null ? data.total_pct[sel[0]]-prevPct : null;
+    }
 
     document.getElementById(cfg.kpisId).innerHTML = `
       <div class="kpi-card">
         <div class="kpi-card-top" style="background:#1a2540"></div>
         <div class="kpi-label">Costo logístico total</div>
         <div class="kpi-value">$${fmtN(totalCosto)}</div>
-        <div class="kpi-sub"><span style="color:var(--text3)">${lastMes}</span></div>
+        <div class="kpi-sub"><span style="color:var(--text3)">${lbl}</span></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-card-top" style="background:#2563eb"></div>
         <div class="kpi-label">Facturado</div>
         <div class="kpi-value">$${fmtN(facturado)}</div>
-        <div class="kpi-sub"><span style="color:var(--text3)">${lastMes}</span></div>
+        <div class="kpi-sub"><span style="color:var(--text3)">${lbl}</span></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-card-top" style="background:${pct<=0.15?'#16a34a':pct<=0.30?'#d97706':'#dc2626'}"></div>
@@ -374,10 +518,10 @@ function renderCostosLog(key, cfg) {
     `;
 
     const mesLabelEl = document.getElementById(cfg.mesLabelId);
-    if(mesLabelEl) mesLabelEl.textContent = lastMes;
+    if(mesLabelEl) mesLabelEl.textContent = lbl;
 
-    // Bar: costo por operador (mes seleccionado), excluye "Total", ordenado desc
-    const ops = data.operadores.filter(o=>o.operador!=='Total').map(o=>({nombre:o.operador.replace(/\s*\(.*?\)\s*/,'').trim(),costo:o.meses[lastMes].costo||0})).sort((a,b)=>b.costo-a.costo);
+    // Bar: costo por operador (suma de meses seleccionados), excluye "Total", ordenado desc
+    const ops = data.operadores.filter(o=>o.operador!=='Total').map(o=>({nombre:o.operador.replace(/\s*\(.*?\)\s*/,'').trim(),costo:sel.reduce((s,m)=>s+((o.meses[m]&&o.meses[m].costo)||0),0)})).sort((a,b)=>b.costo-a.costo);
     const barColors=['#1a2540','#2563eb','#0891b2','#d97706','#7c3aed','#dc2626','#16a34a','#f18a00'];
     mkChart(cfg.chartId,'bar',{
       labels: ops.map(o=>o.nombre.length>22?o.nombre.slice(0,22)+'…':o.nombre),
@@ -411,10 +555,10 @@ function renderCostosLog(key, cfg) {
 }
 
 function renderKpiLogCards() {
-  // Use currentMes; fall back to last available mes
   const availMeses = MESES.filter(m=>RAW.kpi_logistica.some(r=>r.mes===m));
-  const lastMes = availMeses.includes(currentMes) ? currentMes : (availMeses[availMeses.length-1]||currentMes);
-  const kpis = RAW.kpi_logistica.filter(r=>r.mes===lastMes&&!r.indicador.includes('Quiebre')&&!r.indicador.includes('Cantidad'));
+  let sel = selMesesIn(availMeses);
+  if(!sel.length) sel = [availMeses[availMeses.length-1]].filter(Boolean);
+  const lbl = mesesLabel(sel);
   const colors = {'Exactitud de Inventario PT Planta':'#1a2540','Exactitud de Inventario PT Enbox':'#2563eb','Exactitud de Inventario MP':'#0891b2','Dias de inventario disponible':'#16a34a','Exactitud de Picking B2B':'#d97706','Exactitud de Picking B2C':'#7c3aed','Tiempo de Procesamiento de Pedido':'#dc2626'};
   const el = document.getElementById('kpi-log-cards');
   el.className = 'kpi-row';
@@ -428,41 +572,54 @@ function renderKpiLogCards() {
     'Exactitud de Picking B2C',
   ];
   const TIME_WANTED = ['Tiempo de Procesamiento de Pedido','Ciclo completo de pedido'];
-  const kpisOrdered = WANTED.map(ind => kpis.find(r=>r.indicador.trim()===ind)).filter(Boolean);
-  const kpisTiempo = TIME_WANTED.map(ind => kpis.find(r=>r.indicador.trim()===ind)).filter(Boolean);
-  el.style.gridTemplateColumns = 'repeat(4,1fr)';
-  const cardsPct = kpisOrdered.map(r=>{
-    // Estos 5 indicadores son siempre porcentajes de exactitud. Normalizamos a escala 0-1
-    // porque algunos meses (ej. Junio) vienen cargados en escala 0-100 en el Excel de origen.
-    const valorN = r.valor>2 ? r.valor/100 : r.valor;
-    const metaN = (r.meta!=null && r.meta>2) ? r.meta/100 : r.meta;
+
+  // Filas del indicador en los meses seleccionados
+  function rowsFor(ind){ return RAW.kpi_logistica.filter(r=>sel.includes(r.mes)&&r.indicador.trim()===ind); }
+  // Comentarios combinados (prefijados por mes cuando hay varios)
+  function combComent(rows){
+    const cs = rows.filter(r=>r.comentario).map(r=> sel.length>1 ? r.mes+': '+r.comentario : r.comentario);
+    return cs.length ? '<div style="margin-top:6px;font-size:10px;color:var(--amber);border-top:1px solid var(--border);padding-top:5px;line-height:1.4">'+cs.map(c=>'<div>'+c+'</div>').join('')+'</div>' : '';
+  }
+  const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+
+  const cardsPct = WANTED.map(ind=>{
+    const rows = rowsFor(ind);
+    if(!rows.length) return null;
+    // Estos indicadores son porcentajes de exactitud. Normalizamos cada mes a escala 0-1
+    // (algunos meses vienen cargados en escala 0-100) antes de promediar la selecci\u00f3n.
+    const valorN = avg(rows.map(r=> r.valor>2 ? r.valor/100 : r.valor));
+    const metaRow = rows.find(r=>r.meta!=null);
+    const metaN = metaRow!=null ? (metaRow.meta>2?metaRow.meta/100:metaRow.meta) : null;
     const ok = metaN!=null ? valorN>=metaN*0.98 : true;
     const val = fmtPct(valorN);
     const metaStr = metaN!=null ? 'Meta '+fmtPct(metaN) : '';
-    const comentario = r.comentario ? '<div style="margin-top:6px;font-size:10px;color:var(--amber);border-top:1px solid var(--border);padding-top:5px;line-height:1.4">'+r.comentario+'</div>' : '';
     return '<div class="kpi-card">'
-      +'<div class="kpi-card-top" style="background:'+(colors[r.indicador.trim()]||'#1a2540')+'"></div>'
-      +'<div class="kpi-label" style="font-size:9px">'+r.indicador.trim()+'</div>'
+      +'<div class="kpi-card-top" style="background:'+(colors[ind]||'#1a2540')+'"></div>'
+      +'<div class="kpi-label" style="font-size:9px">'+ind+'</div>'
       +'<div class="kpi-value" style="font-size:18px">'+val+'</div>'
-      +'<div class="kpi-sub">'+(metaStr?'<span class="badge '+(ok?'pos':'neg')+'">'+metaStr+'</span>':'')+'<span style="color:var(--text3)">'+lastMes+'</span></div>'
-      +comentario
+      +'<div class="kpi-sub">'+(metaStr?'<span class="badge '+(ok?'pos':'neg')+'">'+metaStr+'</span>':'')+'<span style="color:var(--text3)">'+lbl+'</span></div>'
+      +combComent(rows)
       +'</div>';
-  });
-  const cardsTiempo = kpisTiempo.map(r=>{
-    const valorN=typeof r.valor==='number'?r.valor:parseFloat(r.valor);
-    const metaN=typeof r.meta==='number'?r.meta:(r.meta&&!isNaN(parseFloat(r.meta))?parseFloat(r.meta):null);
-    const ok=metaN!=null?valorN<=metaN:true;
-    const val=isNaN(valorN)?'\u2014':valorN.toFixed(1)+' hs';
-    const metaStr=metaN!=null?'Meta '+metaN.toFixed(0)+' hs':'';
-    const comentario=r.comentario?'<div style="margin-top:6px;font-size:10px;color:var(--amber);border-top:1px solid var(--border);padding-top:5px;line-height:1.4">'+r.comentario+'</div>':'';
+  }).filter(Boolean);
+
+  const cardsTiempo = TIME_WANTED.map(ind=>{
+    const rows = rowsFor(ind);
+    if(!rows.length) return null;
+    const valorN = avg(rows.map(r=>typeof r.valor==='number'?r.valor:parseFloat(r.valor)).filter(v=>!isNaN(v)));
+    const metaRow = rows.find(r=>r.meta!=null && !isNaN(parseFloat(r.meta)));
+    const metaN = metaRow!=null ? parseFloat(metaRow.meta) : null;
+    const ok = metaN!=null ? valorN<=metaN : true;
+    const val = (valorN==null||isNaN(valorN)) ? '\u2014' : valorN.toFixed(1)+' hs';
+    const metaStr = metaN!=null ? 'Meta '+metaN.toFixed(0)+' hs' : '';
     return '<div class="kpi-card">'
-      +'<div class="kpi-card-top" style="background:'+(colors[r.indicador.trim()]||'#1a2540')+'"></div>'
-      +'<div class="kpi-label" style="font-size:9px">'+r.indicador.trim()+'</div>'
+      +'<div class="kpi-card-top" style="background:'+(colors[ind]||'#1a2540')+'"></div>'
+      +'<div class="kpi-label" style="font-size:9px">'+ind+'</div>'
       +'<div class="kpi-value" style="font-size:18px">'+val+'</div>'
-      +'<div class="kpi-sub">'+(metaStr?'<span class="badge '+(ok?'pos':'neg')+'">'+metaStr+'</span>':'')+'<span style="color:var(--text3)">'+lastMes+'</span></div>'
-      +comentario
+      +'<div class="kpi-sub">'+(metaStr?'<span class="badge '+(ok?'pos':'neg')+'">'+metaStr+'</span>':'')+'<span style="color:var(--text3)">'+lbl+'</span></div>'
+      +combComent(rows)
       +'</div>';
-  });
+  }).filter(Boolean);
+
   el.innerHTML = cardsPct.join('') + cardsTiempo.join('');
 }
 
@@ -490,9 +647,10 @@ function toggleCanal(canal) {
 
 function renderPedidosChart() {
   const byMes = RAW.log_summary.by_mes;
-  const availMeses = RAW.log_summary.meses_disponibles;
-  const mes = availMeses.includes(currentMes) ? currentMes : (availMeses[availMeses.length-1]||currentMes);
-  const data = (byMes[mes] && byMes[mes].canal_almacen) || {};
+  const availMeses = RAW.log_summary.meses_disponibles.filter(m=>byMes[m]);
+  let sel = selMesesIn(availMeses);
+  if(!sel.length) sel = [availMeses[availMeses.length-1]].filter(Boolean);
+  const data = mergeCanalAlmacen(sel);
 
   const canales = ['B2B','B2C'];
   const almacenes = [...new Set(Object.keys(data).map(k=>k.split('|')[1]))];
@@ -605,11 +763,11 @@ function renderEvolPedidos() {
 
 function renderPiesOperadores() {
   const byMes = RAW.log_summary.by_mes;
-  const availMeses = RAW.log_summary.meses_disponibles;
-  const mes = availMeses.includes(currentMes) ? currentMes : (availMeses[availMeses.length-1]||currentMes);
-  const mesData = byMes[mes] || {};
-  const canalAlmacen = mesData.canal_almacen || {};
-  const grangerTransp = (RAW.granger_sa_transp && RAW.granger_sa_transp[mes]) || {};
+  const availMeses = RAW.log_summary.meses_disponibles.filter(m=>byMes[m]);
+  let sel = selMesesIn(availMeses);
+  if(!sel.length) sel = [availMeses[availMeses.length-1]].filter(Boolean);
+  const canalAlmacen = mergeCanalAlmacen(sel);
+  const grangerTransp = mergeGrangerTransp(sel);
 
   // "Enbox" y "Mercado Libre" quedan fijados al total de pedidos de esos almacenes
   // (mismo número que en "Pedidos por canal y almacén"). Solo el almacén "Granger S.A."
@@ -681,17 +839,19 @@ Chart.register(pieLabelPlugin);
 
 function renderMapaArg() {
   var byMes = RAW.log_summary.by_mes;
-  var availMeses = RAW.log_summary.meses_disponibles;
-  var mes = availMeses.includes(currentMes) ? currentMes : (availMeses[availMeses.length-1]||currentMes);
-  var mesData = byMes[mes] || {};
+  var availMeses = RAW.log_summary.meses_disponibles.filter(m=>byMes[m]);
+  var sel = selMesesIn(availMeses);
+  if(!sel.length) sel = [availMeses[availMeses.length-1]].filter(Boolean);
+  var mergedCA = mergeCanalAlmacen(sel);
 
   // Construir counts filtrado por canal activo a partir de canal_almacen + prov_counts
-  // Como prov_counts no está separado por canal, usamos prov_counts_total ponderado por % del canal
-  // Aproximación: usar prov_counts del mes y escalar por proporción del canal en ese mes
-  var allCounts = mesData.prov_counts || RAW.log_summary.prov_counts_total || {};
-  var canalData = Object.entries(mesData.canal_almacen||{}).filter(([k])=>k.startsWith(currentCanal+'|'));
+  // Como prov_counts no está separado por canal, usamos prov_counts (sumado sobre los meses
+  // seleccionados) escalado por la proporción del canal en esos mismos meses.
+  var mergedProv = mergeProvCounts(sel);
+  var allCounts = Object.keys(mergedProv).length ? mergedProv : (RAW.log_summary.prov_counts_total || {});
+  var canalData = Object.entries(mergedCA).filter(([k])=>k.startsWith(currentCanal+'|'));
   var totalCanal = canalData.reduce((s,[,v])=>s+v.pedidos,0);
-  var totalAll = Object.entries(mesData.canal_almacen||{}).reduce((s,[,v])=>s+v.pedidos,0)||1;
+  var totalAll = Object.entries(mergedCA).reduce((s,[,v])=>s+v.pedidos,0)||1;
   var ratio = totalCanal/totalAll;
   // Escalar counts por la proporción del canal
   var counts = {};
@@ -739,10 +899,12 @@ function showMapTip(){}
 function hideMapTip(){}
 
 function renderTablaProvincias() {
-  var mesesDisp = RAW.log_summary.meses_disponibles;
-  // Calcular semanas dinámicamente: aprox 4.33 semanas por mes
-  var SEMANAS_PERIODO = parseFloat((mesesDisp.length * 4.333).toFixed(2));
   var byMes = RAW.log_summary.by_mes;
+  var availMeses = RAW.log_summary.meses_disponibles.filter(function(m){return byMes[m];});
+  var mesesDisp = selMesesIn(availMeses);
+  if(!mesesDisp.length) mesesDisp = [availMeses[availMeses.length-1]].filter(Boolean);
+  // Calcular semanas dinámicamente: aprox 4.33 semanas por mes (sobre los meses seleccionados)
+  var SEMANAS_PERIODO = parseFloat((mesesDisp.length * 4.333).toFixed(2)) || 1;
 
   var provTotales = {};
   mesesDisp.forEach(function(m) {
@@ -785,26 +947,36 @@ function renderTiemposB2C() {
 function renderCompras() {
   const data=RAW.kpi_compras;
   const availMeses=MESES.filter(m=>data.some(r=>r.mes===m));
-  const lastMes=availMeses.includes(currentMes)?currentMes:(availMeses.pop()||currentMes);
-  const lastData=data.filter(r=>r.mes===lastMes);
+  let sel=selMesesIn(availMeses);
+  if(!sel.length) sel=[availMeses[availMeses.length-1]].filter(Boolean);
+  const lbl=mesesLabel(sel);
   const barColors=['#22201c','#f18a00','#f49b31','#3b3836'];
 
-  document.getElementById('compras-kpis').innerHTML=lastData.map((r,i)=>{
-    const isPct=r.indicador.includes('%');
-    const val=isPct?`${r.valor.toFixed(1)}%`:`${r.valor.toFixed(1)} d`;
-    const meta=r.meta?(isPct?`Meta ${r.meta.toFixed(0)}%`:`Meta ${r.meta.toFixed(0)}d`):'';
-    const ok=r.meta?(isPct?r.valor>=r.meta*0.95:r.valor<=r.meta*1.05):true;
+  // Indicadores en el orden del mes más reciente de la selección; valor = promedio sobre la selección
+  const orderMes = sel[sel.length-1];
+  const orderRows = data.filter(r=>r.mes===orderMes);
+  const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+
+  document.getElementById('compras-kpis').innerHTML=orderRows.map((r0,i)=>{
+    const rows=data.filter(r=>sel.includes(r.mes)&&r.indicador===r0.indicador);
+    const valor=avg(rows.map(r=>r.valor).filter(v=>typeof v==='number'));
+    const metaRow=rows.find(r=>r.meta);
+    const meta0=metaRow?metaRow.meta:null;
+    const isPct=r0.indicador.includes('%');
+    const val=valor==null?'—':(isPct?`${valor.toFixed(1)}%`:`${valor.toFixed(1)} d`);
+    const meta=meta0?(isPct?`Meta ${meta0.toFixed(0)}%`:`Meta ${meta0.toFixed(0)}d`):'';
+    const ok=meta0?(isPct?valor>=meta0*0.95:valor<=meta0*1.05):true;
     return `<div class="kpi-card">
       <div class="kpi-card-top" style="background:${barColors[i%barColors.length]}"></div>
-      <div class="kpi-label">${r.indicador.replace(' - Días','').replace(' - %','')}</div>
+      <div class="kpi-label">${r0.indicador.replace(' - Días','').replace(' - %','')}</div>
       <div class="kpi-value" style="font-size:20px">${val}</div>
-      <div class="kpi-sub">${meta?`<span class="badge ${ok?'pos':'neg'}">${meta}</span>`:''}<span style="color:var(--text3)">${lastMes}</span></div>
+      <div class="kpi-sub">${meta?`<span class="badge ${ok?'pos':'neg'}">${meta}</span>`:''}<span style="color:var(--text3)">${lbl}</span></div>
     </div>`;
   }).join('');
 
   renderKpiComprasChart();
 
-  const withObs=data.filter(r=>r.comentario&&r.mes===lastMes);
+  const withObs=data.filter(r=>r.comentario&&sel.includes(r.mes));
   document.getElementById('compras-obs').innerHTML=withObs.length
     ?`<div class="obs-timeline">`+withObs.map(r=>`<div class="obs-item"><div class="obs-week">${r.mes}</div><div style="font-size:10px;color:var(--text3);margin-right:6px;min-width:120px">${r.indicador.slice(0,25)}</div><div class="obs-text">${r.comentario}</div></div>`).join('')+`</div>`
     :`<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Sin observaciones</div>`;
@@ -816,34 +988,38 @@ function renderCostosMP() {
   const data = RAW.costos_mp;
   if(!data || !data.meses.length) return;
   const meses = data.meses;
-  const sinDatosMes = !meses.includes(currentMes);
-  if(sinDatosMes) {
-    document.getElementById('costos-mp-kpis').innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:24px 0">Sin datos de costos logísticos de MP cargados para '+currentMes+'</div>';
+  const sel = selMesesIn(meses);
+  const lbl = mesesLabel(sel);
+  if(!sel.length) {
+    document.getElementById('costos-mp-kpis').innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:24px 0">Sin datos de costos logísticos de MP cargados para '+mesesLabel()+'</div>';
   } else {
-    const lastMes = currentMes;
-    const idx = meses.indexOf(lastMes);
-    const prevMes = idx>0 ? meses[idx-1] : null;
-    const totalCosto = data.total_costo[lastMes];
-    const prevCosto = prevMes ? data.total_costo[prevMes] : null;
-    const deltaCosto = prevCosto!=null ? (totalCosto-prevCosto)/prevCosto : null;
+    const totalCosto = sel.reduce((s,m)=>s+(data.total_costo[m]||0),0);
+    // Variación vs mes anterior solo con un único mes seleccionado
+    let deltaCosto = null, prevMes = null;
+    if(sel.length===1){
+      const idx = meses.indexOf(sel[0]);
+      prevMes = idx>0 ? meses[idx-1] : null;
+      const prevCosto = prevMes ? data.total_costo[prevMes] : null;
+      deltaCosto = (prevCosto!=null && prevCosto!==0) ? (data.total_costo[sel[0]]-prevCosto)/prevCosto : null;
+    }
     document.getElementById('costos-mp-kpis').innerHTML = `
       <div class="kpi-card">
         <div class="kpi-card-top" style="background:#1a2540"></div>
         <div class="kpi-label">Costo logístico MP total</div>
         <div class="kpi-value">$${fmtN(totalCosto)}</div>
-        <div class="kpi-sub"><span style="color:var(--text3)">${lastMes}</span></div>
+        <div class="kpi-sub"><span style="color:var(--text3)">${lbl}</span></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-card-top" style="background:#7c3aed"></div>
         <div class="kpi-label">Variación vs mes anterior</div>
         <div class="kpi-value" style="font-size:20px">${deltaCosto!=null?(deltaCosto>0?'+':'')+fmtPct(deltaCosto):'—'}</div>
-        <div class="kpi-sub">${prevMes?'<span style="color:var(--text3)">vs '+prevMes+'</span>':''}</div>
+        <div class="kpi-sub">${prevMes?'<span style="color:var(--text3)">vs '+prevMes+'</span>':(sel.length>1?'<span style="color:var(--text3)">'+lbl+'</span>':'')}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-card-top" style="background:#0891b2"></div>
         <div class="kpi-label">Operadores</div>
         <div class="kpi-value">${data.operadores.length}</div>
-        <div class="kpi-sub"><span style="color:var(--text3)">${lastMes}</span></div>
+        <div class="kpi-sub"><span style="color:var(--text3)">${lbl}</span></div>
       </div>
     `;
   }
@@ -931,9 +1107,10 @@ function renderMP() {
     var ultimoCosto=mp.costos[lastMes];
     var varEneJul=fmtPctVar(mp.var_ene_jul); var varMesAnt=fmtPctVar(mp.var_mes_ant);
     var leadTimeProm=avg(mp.lead_time); var condPagoProm=avg(mp.cond_pago);
-    var cantUtilizada=mp.cant_utilizada?mp.cant_utilizada[currentMes]:null;
-    var cantRecibida=mp.cant_recibida?mp.cant_recibida[currentMes]:null;
-    var precioTotalArs=mp.precio_total_ars?mp.precio_total_ars[currentMes]:null;
+    var selMP=selMeses();
+    var cantUtilizada=sumMesObj(mp.cant_utilizada, selMP);
+    var cantRecibida=sumMesObj(mp.cant_recibida, selMP);
+    var precioTotalArs=sumMesObj(mp.precio_total_ars, selMP);
     var row='<tr class="mp-row" id="mprow-'+idx+'" onclick="toggleMP('+idx+')" style="cursor:pointer;border-bottom:1px solid #e5e7eb;transition:background .15s">'
       +'<td style="padding:12px 8px;font-size:13px;color:#9ca3af;width:32px">'+(idx+1)+'</td>'
       +'<td style="padding:12px 8px"><div style="font-size:13px;font-weight:700;color:#111827">'+mp.nombre.replace(/^\[\d+\]\s*/,'')+'</div><div style="font-size:11px;color:#9ca3af;margin-top:2px">'+mp.proveedor+'</div></td>'
